@@ -1,0 +1,148 @@
+name: Push commit
+on:
+  release:
+    types: [ created ]
+  push:
+    branches:
+      - '*'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  ruff:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run ruff
+        run: |
+          pip install ruff==0.5.1
+          ruff check -q
+
+  build:
+    runs-on: ubuntu-22.04
+    needs: [ ruff ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: 1.8.4
+      - name: Build
+        run: |
+          if [[ '${{ github.event_name }}' = 'release' ]]; then
+             sed -i -e "s/0.dev.0/$GITHUB_REF_NAME/g" pyproject.toml
+          fi
+          poetry build
+          mkdir ripley_build
+          mv ./dist ./ripley_build
+      - name: Upload ripley package
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: ripley_build
+          retention-days: 90
+      - name: Upload pyproject.toml
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyproject.toml
+          path: pyproject.toml
+          retention-days: 90
+      - name: Upload README.md
+        uses: actions/upload-artifact@v4
+        with:
+          name: README.md
+          path: README.md
+          retention-days: 90
+
+  tests:
+    runs-on: ubuntu-22.04
+    permissions: write-all
+    needs: [ build ]
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "3.8", "3.9", "3.10", "3.11", "3.12" ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: 1.8.4
+      - name: Download ripley package
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+      - uses: hoverkraft-tech/compose-action@v2.0.2
+        with:
+          services: |
+            clickhouse
+            s3
+          up-flags: "-d"
+      - name: Install test dependencies, ripley and run tests
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          rm -r ripley
+          poetry config virtualenvs.create false
+          poetry lock --no-update
+          poetry install --only=dev
+          pip install --no-index -f ./dist ripley
+          pip install pytest-cov
+          pytest --doctest-modules --junitxml=test-results-${{ matrix.python-version }}.xml
+      - name: Upload pytest results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}.xml
+          path: test-results-${{ matrix.python-version }}.xml
+          retention-days: 90
+        if: always()
+      - name: Download test report
+        uses: actions/download-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.python-version }}.xml
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action/macos@v2
+        if: always()
+        with:
+          files: |
+            test-results-${{ matrix.python-version }}.xml
+
+  publish_to_PyPi:
+    runs-on: ubuntu-22.04
+    needs: [ tests ]
+    if: github.event_name == 'release' && github.event.action == 'created'
+    steps:
+      - uses: actions/setup-python@v5
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: 1.8.4
+      - name: Download ripley package
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+      - name: Download pyproject.toml
+        uses: actions/download-artifact@v4
+        with:
+          name: pyproject.toml
+      - name: Download README.md
+        uses: actions/download-artifact@v4
+        with:
+          name: README.md
+      - name: Publish ripley package
+        run: |
+          poetry config pypi-token.pypi ${{ secrets.pypi_password }}
+          poetry publish
