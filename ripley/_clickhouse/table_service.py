@@ -11,6 +11,7 @@ from .._sql_cmd.clickhouse import (
     InsertIntoS3Cmd,
     Remote,
     InsertFromRemote,
+    CreateDistributedTable,
 )
 from .._sql_cmd.general import BaseInsertIntoTableFromTable
 from ..clickhouse_models.remote_settings import ClickhouseRemoteSettingsModel as RemoteSettings
@@ -134,3 +135,19 @@ class TableService:
             InsertFromRemote,
             model_params=dict(table_name=self._cmd.get_full_table_name(table, db), from_remote=remote),
         )
+
+    def create_distributed_table(self, create_table: str, table: str, database: str, sharding_key: str = '',
+                                 cluster: str = "'{cluster}'",) -> ClickhouseTableModel:
+        self._cmd.run_cmd(
+            CreateDistributedTable,
+            model_params=dict(
+                create_table=create_table,
+                table=table,
+                database=database,
+                sharding_key=sharding_key,
+                cluster=cluster,
+            ),
+        )
+
+        db_name, table_name = create_table.split('.')
+        return self._system.get_table_by_name(table_name, db_name)

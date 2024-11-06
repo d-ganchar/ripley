@@ -122,3 +122,7 @@ class MainService(ClickhouseProtocol):
     def insert_from_remote(self, settings: RemoteSettings, table: str, db: str = '',
                            create_table: bool = False) -> None:
         self._table.insert_from_remote(settings, table, db, create_table)
+
+    def create_distributed_table(self, create_table: str, table: str, database: str, sharding_key: str = '',
+                                 cluster: str = "'{cluster}'") -> Table:
+        return self._table.create_distributed_table(create_table, table, database, sharding_key, cluster)

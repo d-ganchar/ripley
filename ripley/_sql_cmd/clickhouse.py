@@ -17,8 +17,8 @@ class CreateDbOnCluster(BaseCreateDb):
 
     def to_sql(self) -> str:
         cmd = super().to_sql()
-        on_cluster = f"ON CLUSTER '{self._on_cluster}'" if self._on_cluster else ''
-        engine = f"ENGINE {self._engine}" if self._engine else ''
+        on_cluster = f" ON CLUSTER '{self._on_cluster}'" if self._on_cluster else ''
+        engine = f" ENGINE {self._engine}" if self._engine else ''
         return f"{cmd}{on_cluster}{engine}"
 
 
@@ -152,7 +152,7 @@ class CreateTableOnClusterCmd(BaseCreateTable):
 
     def to_sql(self) -> str:
         cmd = super().to_sql()
-        cmd = f"{cmd} ON CLUSTER '{self._on_cluster}'" if self._on_cluster else cmd
+        cmd = f"{cmd} ON CLUSTER {self._on_cluster}" if self._on_cluster else cmd
         return cmd
 
 
@@ -173,13 +173,11 @@ class CreateTableAsOnClusterCmd(CreateTableOnClusterCmd):
         self._engine = engine
 
     def to_sql(self) -> str:
-        return f"""
-            {super().to_sql()}
-            engine = {self._engine}
+        return f"""{super().to_sql()}
+            ENGINE = {self._engine}
             {self._order_by}
             {self._partition_by}
-            AS {self._from_table}
-        """
+            AS {self._from_table}"""
 
 
 class Remote(AbstractSql):
@@ -235,3 +233,26 @@ class InsertFromRemote(AbstractSql):
 
     def to_sql(self) -> str:
         return f'INSERT INTO {self._table_name} SELECT * FROM {self._from_remote.to_sql()}'
+
+
+class CreateDistributedTable(AbstractSql):
+    def __init__(
+        self,
+        create_table: str,
+        table: str,
+        on_cluster: str,
+        database: str,
+        sharding_key: str = '',
+        cluster: str = "'{cluster}'",
+    ):
+        self._create_table = create_table
+        self._table = table
+        self._on_cluster = on_cluster
+        self._cluster = cluster
+        self._database = database
+        self._sharding_key = sharding_key
+
+    def to_sql(self) -> str:
+        sharding_key = f', {self._sharding_key}' if self._sharding_key else ''
+        return f"""CREATE TABLE {self._create_table} ON CLUSTER {self._on_cluster}
+            ENGINE = Distributed({self._cluster}, {self._database}, {self._table}{sharding_key})"""

@@ -225,3 +225,19 @@ class ClickhouseProtocol(Protocol, metaclass=abc.ABCMeta):
         INSERT INTO {db}.{table} SELECT * FROM remote(...)
         https://clickhouse.com/docs/en/integrations/s3#s3-table-functions
         """
+
+    @abc.abstractmethod
+    def create_distributed_table(
+        self,
+        create_table: str,
+        table: str,
+        database: str,
+        sharding_key: str = '',
+        cluster: str = "'{cluster}'",
+    ) -> Table:
+        """
+        https://clickhouse.com/docs/en/engines/table-engines/special/distributed
+
+        CREATE TABLE {create_table} ON CLUSTER ripley
+        ENGINE = Distributed({cluster}, {table}, {table}, {sharding_key})
+        """

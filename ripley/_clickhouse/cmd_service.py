@@ -3,7 +3,14 @@ from copy import deepcopy
 from typing import Any, Type, List, Dict
 
 from .._log import log
-from .._sql_cmd.clickhouse import AlterOnClusterCmd, CreateTableOnClusterCmd, TruncateOnClusterCmd, CreateDbOnCluster
+from .._sql_cmd.clickhouse import (
+    AlterOnClusterCmd,
+    CreateTableOnClusterCmd,
+    TruncateOnClusterCmd,
+    CreateDbOnCluster,
+    CreateDistributedTable,
+    DropPartitionOnClusterCmd,
+)
 from .._sql_cmd.general import AbstractSql
 
 
@@ -33,15 +40,19 @@ class CmdService:
 
     def skip_on_cluster(self):
         self._on_cluster = ''
+        log.info('ON CLUSTER mode disabled')
 
     def set_on_cluster(self, name: str):
         self._on_cluster = name
+        log.info("ON CLUSTER %s mode enabled", self._on_cluster)
 
     def set_settings(self, settings: dict):
         self._settings = settings
+        log.info('query settings enabled. %s', self._settings)
 
     def skip_settings(self):
         self._settings = {}
+        log.info('query settings disabled. %s', self._settings)
 
     def exec(self, sql: str, params: dict = None, with_column_types: bool = False):
         return self._client.execute(sql, params=params, with_column_types=with_column_types, settings=self._settings)
@@ -66,11 +77,12 @@ class CmdService:
         params = deepcopy(model_params)
         if issubclass(
             model_class,
-            (AlterOnClusterCmd, CreateTableOnClusterCmd, TruncateOnClusterCmd, CreateDbOnCluster)
+            (AlterOnClusterCmd, CreateTableOnClusterCmd, TruncateOnClusterCmd, CreateDbOnCluster,
+             CreateDistributedTable, DropPartitionOnClusterCmd)
         ):
             if self._on_cluster:
                 params['on_cluster'] = self._on_cluster
 
         cmd = model_class(**params)
-        log.info('%s\nSETTINGS %s', cmd, self._settings)
+        log.info('%s', cmd)
         self.exec(cmd.to_sql())
