@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass, field
-from typing import Callable, Union
+from typing import Callable, Union, List
 
 from .._base_model import BaseModel
 
@@ -71,7 +71,7 @@ class S3SelectSettingsModel(BaseModel):
     Adds '{FILE_URL}' automatically into a column
     """
 
-    field_convertors: list[list[Union[list[str], Callable]]] = field(default_factory=list)
+    field_convertors: List[List[Union[List[str], Callable]]] = field(default_factory=list)
     """Converts S3 fields before INSERT. Format:
         [{LIST_OF_COLUMN_NAMES}, {S3_TYPE}, {CLICKHOUSE_FUNCTIONS}]
         Example:
