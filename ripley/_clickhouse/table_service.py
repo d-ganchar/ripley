@@ -16,6 +16,7 @@ from .._sql_cmd.clickhouse import (
 from .._sql_cmd.general import BaseInsertIntoTableFromTable
 from ..clickhouse_models.remote_settings import ClickhouseRemoteSettingsModel as RemoteSettings
 from ..clickhouse_models.s3_settings import ClickhouseS3SettingsModel as S3Settings
+from ..clickhouse_models.s3_settings import S3SelectSettingsModel as S3SelectSettings
 from ..clickhouse_models.table import ClickhouseTableModel
 
 
@@ -66,12 +67,51 @@ class TableService:
             model_params=dict(table_name=table_name),
         )
 
-    def insert_from_s3(self, table: ClickhouseTableModel, s3_settings: S3Settings):
+    def insert_from_s3(
+        self,
+        table: ClickhouseTableModel,
+        s3_settings: S3Settings,
+        s3_select_settings: S3SelectSettings = None,
+    ):
+        fields = []
+        field_types = []
+        convertors = s3_select_settings.field_convertors if s3_select_settings else []
+
+        for column in self._system.get_table_columns(table.name, table.database):
+            s3_name = column.name
+            real_name = column.name
+            s3_type = column.type
+
+            if s3_select_settings:
+                if column.name == s3_select_settings.s3_file_name_column:
+                    fields.append(f"'{s3_settings.url}' AS {column.name}")
+                    continue
+
+                if s3_select_settings.field_name_transformer:
+                    s3_name = s3_select_settings.field_name_transformer(real_name)
+                    real_name = f'"{s3_name}"'
+
+                for convertor_field, convertor_type, convertor in convertors:
+                    if column.name not in convertor_field:
+                        continue
+
+                    real_name = convertor(real_name)
+                    s3_type = convertor_type
+                    break
+            else:
+                real_name = f'"{column.name}"'
+
+            s3_name = f'"{s3_name}"'
+            fields.append(f'{real_name} AS {column.name}')
+            field_types.append(f"'{s3_name} {s3_type},'")
+
         self._cmd.run_cmd(
             InsertFromS3Cmd,
             model_params=dict(
                 table_name=table.full_name,
                 s3_settings=s3_settings,
+                field_types=field_types,
+                fields=fields,
             ),
         )
 

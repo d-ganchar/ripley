@@ -13,6 +13,7 @@ from ..clickhouse_models.partition import ClickhousePartitionModel as Partition
 from ..clickhouse_models.process import ClickhouseProcessModel as Process
 from ..clickhouse_models.remote_settings import ClickhouseRemoteSettingsModel as RemoteSettings
 from ..clickhouse_models.s3_settings import ClickhouseS3SettingsModel as S3Settings
+from ..clickhouse_models.s3_settings import S3SelectSettingsModel as S3SelectSettings
 from ..clickhouse_models.table import ClickhouseTableModel as Table
 
 
@@ -110,8 +111,8 @@ class MainService(ClickhouseProtocol):
     def truncate(self, table: str, db: str = '') -> None:
         self._table.truncate(table, db)
 
-    def insert_from_s3(self, table: Table, s3_settings: S3Settings):
-        self._table.insert_from_s3(table, s3_settings)
+    def insert_from_s3(self, table: Table, s3_settings: S3Settings, s3_select_settings: S3SelectSettings = None):
+        self._table.insert_from_s3(table, s3_settings, s3_select_settings)
 
     def insert_table_to_s3(self, table: Table, s3_settings: S3Settings):
         self._table.insert_table_to_s3(table, s3_settings)

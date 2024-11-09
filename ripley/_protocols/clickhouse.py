@@ -7,6 +7,7 @@ from ..clickhouse_models.disk import ClickhouseDiskModel as Disk
 from ..clickhouse_models.partition import ClickhousePartitionModel as Partition
 from ..clickhouse_models.process import ClickhouseProcessModel as Process
 from ..clickhouse_models.s3_settings import ClickhouseS3SettingsModel as S3Settings
+from ..clickhouse_models.s3_settings import S3SelectSettingsModel as S3SelectSettings
 from ..clickhouse_models.remote_settings import ClickhouseRemoteSettingsModel as RemoteSettings
 from ..clickhouse_models.table import ClickhouseTableModel as Table
 
@@ -192,7 +193,7 @@ class ClickhouseProtocol(Protocol, metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def insert_from_s3(self, table: Table, s3_settings: S3Settings):
+    def insert_from_s3(self, table: Table, s3_settings: S3Settings, s3_select_settings: S3SelectSettings = None):
         """
         INSERT INTO db1.table1 SELECT * FROM s3(...)
 

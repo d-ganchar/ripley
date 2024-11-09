@@ -1,3 +1,5 @@
+from typing import List
+
 from .._sql_cmd.general import (
     BaseAlter,
     BaseTruncate,
@@ -126,9 +128,17 @@ class InsertIntoS3Cmd(AbstractSql):
 
 
 class InsertFromS3Cmd(AbstractSql):
-    def __init__(self, table_name: str, s3_settings: ClickhouseS3SettingsModel):
+    def __init__(
+        self,
+        table_name: str,
+        s3_settings: ClickhouseS3SettingsModel,
+        fields: List[str],
+        field_types: List[str],
+    ):
         self._s3_settings = s3_settings
         self._table_name = table_name
+        self._fields = fields
+        self._field_types = field_types
 
     def __repr__(self):
         return self._get_s3_cmd()
@@ -137,9 +147,13 @@ class InsertFromS3Cmd(AbstractSql):
         url = self._s3_settings.url
         file_format = self._s3_settings.file_format
         compression = self._s3_settings.compression_method
-        s3_cmd = f"s3('{url}', '{key_id}', '{secret}', '{file_format}', '{compression}')"
 
-        return f'INSERT INTO {self._table_name} SELECT * FROM {s3_cmd}'
+        fields = ', '.join(self._fields)
+        field_types = ' || '.join(self._field_types)
+        field_types = field_types[:-2] + "'"
+        s3_cmd = f"s3('{url}', '{key_id}', '{secret}', '{file_format}', {field_types}, '{compression}')"
+
+        return f'INSERT INTO {self._table_name} SELECT {fields} FROM {s3_cmd}'
 
     def to_sql(self) -> str:
         return self._get_s3_cmd(self._s3_settings.access_key_id, self._s3_settings.secret_access_key)

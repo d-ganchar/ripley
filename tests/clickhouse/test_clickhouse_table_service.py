@@ -4,7 +4,7 @@ from datetime import datetime
 import boto3
 from parameterized import parameterized
 
-from ripley.clickhouse_models.s3_settings import ClickhouseS3SettingsModel
+from ripley.clickhouse_models.s3_settings import ClickhouseS3SettingsModel, S3SelectSettingsModel
 from ripley.clickhouse_models.remote_settings import ClickhouseRemoteSettingsModel as RemoteSettings
 from tests.clickhouse._base_test import BaseClickhouseTest, DB
 
@@ -164,32 +164,90 @@ class TestClickhouseTableService(BaseClickhouseTest):
         [DB.RIPLEY_TESTS.value],
         [DB.RIPLEY_TESTS2.value],
     ])
-    def test_insert_from_s3(self, db_name: str):
-        def _get_table_results(_table: str) -> tuple:
-            return self.clickhouse.exec(f'SELECT count() as records FROM {_table}')
+    def test_insert_to_s3(self, db_name: str):
+        file_name = 'events'
+        table_name = 'to_s3'
+        settings = ClickhouseS3SettingsModel(
+            url=f'http://localhost:9001/ripley/{file_name}',
+            file_format='CSVWithNames',
+        )
 
-        to_s3_name = 'insert_to_s3'
-        from_s3_name = 'insert_from_s3'
-        settings = ClickhouseS3SettingsModel(url='http://localhost:9001/ripley/ripley_s3_test4')
+        self.clickhouse.exec(f"""CREATE TABLE {self.get_full_table_name(table_name, db_name)} (
+          value String,
+          day Date
+        )
+        ENGINE MergeTree() ORDER BY value PARTITION BY day AS (SELECT 'value', '2024-01-01')""")
 
-        self.create_test_table(to_s3_name, db_name)
+        from_table = self.clickhouse.get_table_by_name(table_name, db_name)
+        self.clickhouse.insert_table_to_s3(table=from_table, s3_settings=settings)
+        response = self.s3.get_object(Bucket=_S3_BUCKET, Key=file_name)
+        contents = response['Body'].read()
 
-        from_table = self.clickhouse.get_table_by_name(to_s3_name, db_name)
-        from_s3_table = self.clickhouse.create_table_as(table=from_s3_name, from_table=from_table, db=db_name)
-        to_s3_table = self.clickhouse.get_table_by_name(to_s3_name, db_name)
+        self.assertEqual(contents, b'"value","day"\n"value","2024-01-01"\n')
 
-        self.clickhouse.insert_table_to_s3(table=to_s3_table, s3_settings=settings)
-        self.clickhouse.insert_from_s3(table=from_s3_table, s3_settings=settings)
+    def test_select_from_s3(self):
+        key = 'from_s3'
+        table_name = 'from_s3'
 
-        result1 = _get_table_results(to_s3_table.full_name)
-        result2 = _get_table_results(from_table.full_name)
+        self.s3.put_object(
+            Body="""value,name
+1,system_events""",
+            Bucket=_S3_BUCKET,
+            Key=key,
+            ContentType='text/csv',
+        )
 
-        self.assertEqual(result1, [(1000, )])
-        self.assertEqual(result2, [(1000, )])
+        self.clickhouse.exec(f'CREATE TABLE {table_name} (value UInt64, name String) ENGINE MergeTree() ORDER BY name')
+
+        table = self.clickhouse.get_table_by_name(table_name)
+        settings = ClickhouseS3SettingsModel(url=f'http://localhost:9001/ripley/{key}')
+        self.clickhouse.insert_from_s3(table, settings)
+        result = self.clickhouse.exec(f'SELECT * FROM {table_name}')
+        self.assertEqual(result, [(1, 'system_events')])
+
+    def test_s3_select_settings(self):
+        key = 'from_s3'
+        self.s3.put_object(
+            Body="""unknown_field,{created_year},{updated_year},{need_prefix},name
+UNKNOWN_VALUE,2024-01-01,2025-01-01,eu-a1-123,Ridley Scott""",
+            Bucket=_S3_BUCKET,
+            Key=key,
+            ContentType='text/csv',
+        )
+
+        self.clickhouse.exec(f"""CREATE TABLE {key} (
+              created_year UInt64,
+              updated_year UInt64,
+              s3_url String,
+              need_prefix String,
+              name String
+            )
+            ENGINE MergeTree() ORDER BY created_year
+        """)
+
+        settings = ClickhouseS3SettingsModel(url=f'http://localhost:9001/ripley/{key}')
+        table = self.clickhouse.get_table_by_name(key)
+
+        self.clickhouse.set_settings({'input_format_skip_unknown_fields': 1})
+        self.clickhouse.insert_from_s3(
+            table=table,
+            s3_settings=settings,
+            s3_select_settings=S3SelectSettingsModel(
+                s3_file_name_column='s3_url',
+                field_name_transformer=lambda x: x if x == 'name' else ''.join(['{', x, '}']),
+                field_convertors=[
+                    [['created_year', 'updated_year'], 'String', lambda x: f'toYear(toDate({x}))'],
+                    [['need_prefix'], 'String', lambda x: f'splitByChar(\'-\', {x})[1]'],
+                ]
+            )
+        )
+
+        result = self.clickhouse.exec(f"SELECT * FROM {key}")
+        self.assertEqual(result, [(2024, 2025, 'http://localhost:9001/ripley/from_s3', 'eu', 'Ridley Scott')])
 
     def test_insert_from_remote(self):
         remote_table = 'insert_from_remote'
-        remote_db = 'remote_db'
+        remote_db = DB.RIPLEY_TESTS2.value
         full_remote_name = self.get_full_table_name(remote_table, remote_db)
 
         self.clickhouse.create_db(remote_db)
