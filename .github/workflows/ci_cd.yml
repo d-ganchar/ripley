@@ -57,32 +57,33 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        run: uv sync --dev
-
       - name: Download ripley dist
         uses: actions/download-artifact@v4
         with:
           name: dist
 
+      - name: rm sources
+        run: rm -r ripley
+
+      - name: Install dev dependencies and install package from artifact
+        run: |
+          uv sync --dev
+          uv pip install pytest-cov
+          uv pip install dist/$(ls ./dist/ | grep ".tar.gz")
+
       - name: Install ripley from dist
         run: uv pip install dist/$(ls ./dist/ | grep ".tar.gz")
 
-      - name: Download ripley package
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
       - uses: hoverkraft-tech/compose-action@v2.0.2
         with:
           services: |
             clickhouse
             s3
           up-flags: "-d"
-      - name: Install test dependencies, ripley and run tests
-        run: |
-          rm -r ripley
-          uv add pytest-cov
-          pytest --doctest-modules --junitxml=test-results-${{ matrix.python-version }}.xml
+
+      - name: run tests
+        run: pytest --doctest-modules --junitxml=test-results-${{ matrix.python-version }}.xml
+
       - name: Upload pytest results
         uses: actions/upload-artifact@v4
         with:
@@ -90,11 +91,13 @@ jobs:
           path: test-results-${{ matrix.python-version }}.xml
           retention-days: 90
         if: always()
+
       - name: Download test report
         uses: actions/download-artifact@v4
         if: always()
         with:
           name: test-results-${{ matrix.python-version }}.xml
+
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action/macos@v2
         if: always()
@@ -116,6 +119,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dist
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
