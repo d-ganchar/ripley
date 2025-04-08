@@ -45,6 +45,7 @@ class SystemService:
               FROM system.tables
              WHERE database = %(database)s
                AND lower(name) != 'information_schema' AND name != 'system'
+             ORDER BY metadata_modification_time
         """, params={'database': self._cmd.get_db_or_default(db)}, model=ClickhouseTableModel)
 
     def get_table_partitions(self, table: str, db: str = '') -> List[ClickhousePartitionModel]:

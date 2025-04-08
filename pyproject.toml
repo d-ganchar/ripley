@@ -1,19 +1,17 @@
-[build-system]
-requires = ["poetry-core==1.9.1"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry]
+[project]
 name = "ripley"
 # 0.dev.0 are replaced when CI / CD. see: .github/worflows build job
 version = "0.dev.0"
 description = "data / database manipulation tool. See: https://github.com/d-ganchar/ripley"
-authors = ["Danila Ganchar"]
-license = "MIT"
+authors = [{name = "Danila Ganchar", email = "danila.ganchar@gmail.com"}]
+maintainers = [{name = "Danila Ganchar", email = "danila.ganchar@gmail.com"}]
+license = {text = "MIT license"}
 readme = "README.md"
-keywords = ['data', 'database', 'sql', 'clickhouse']
+requires-python = ">=3.8, < 3.14"
+dependencies = []
 
 classifiers = [
-    'Development Status :: 3 - Alpha',
+    'Development Status :: 4 - Beta',
     'Topic :: Database',
     'Programming Language :: SQL',
     'Programming Language :: Python :: 3.8',
@@ -23,14 +21,22 @@ classifiers = [
     'Programming Language :: Python :: 3.12',
 ]
 
-[tool.poetry.dependencies]
-python = ">=3.8 <3.13"
+[project.urls]
+Homepage = "https://d-ganchar.github.io/ripley.html"
+Changelog = "https://github.com/d-ganchar/ripley/releases"
+Issues = "https://github.com/d-ganchar/ripley/issues"
+CI = "https://github.com/d-ganchar/ripley/actions?query=event%3Arelease"
 
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3.3"
-parameterized = "^0.9.0"
-ruff = "0.5.1"
-clickhouse-driver = "0.2.8"
-build = "1.2.2"
-boto3 = "^1.35.43"
+[dependency-groups]
+dev = [
+    "pytest==8.3.3",
+    "parameterized==0.9.0",
+    "ruff==0.11.4",
+    "build==1.2.2",
+    "boto3==1.35.43",
+    "clickhouse-driver>=0.2.9",
+]
