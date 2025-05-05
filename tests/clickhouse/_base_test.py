@@ -1,3 +1,4 @@
+import sys
 import unittest
 from enum import Enum
 
@@ -6,9 +7,19 @@ from clickhouse_driver import Client
 from ripley import from_clickhouse
 
 
+_PY_VERSION = '_'.join([str(sys.version_info[0]), str(sys.version_info[1])])
+
+def get_full_db_name(name: str) -> str:
+    return f'{name}_py_{_PY_VERSION}'
+
+
+def get_full_table_name(table: str, db: str) -> str:
+    return f'{db}.{table}' if db else table
+
+
 class DB(Enum):
-    RIPLEY_TESTS = f'ripley_tests_db1'
-    RIPLEY_TESTS2 = f'ripley_tests_db2'
+    RIPLEY_TESTS = get_full_db_name('ripley_tests_db1')
+    RIPLEY_TESTS2 = get_full_db_name('ripley_tests_db2')
 
 
 _client = Client(host='localhost', port=9000, user='default', password='', database='default')
@@ -28,17 +39,14 @@ class BaseClickhouseTest(unittest.TestCase):
             self.clickhouse.exec(f'DROP DATABASE IF EXISTS {db.value}')
             self.clickhouse.exec(f'CREATE DATABASE {db.value}')
 
-    def get_full_table_name(self, table: str, db: str) -> str:
-        return f'{db}.{table}' if db else table
-
-    def create_test_table(self, test_name: str, db_name: str = ''):
+    def create_test_table(self, table_name: str, db_name: str = ''):
         """
         test table with 2 partitions. 1000 records
         """
         if db_name:
-            schema_tbl = f'{db_name}.{test_name}'
+            schema_tbl = f'{db_name}.{table_name}'
         else:
-            schema_tbl = test_name
+            schema_tbl = table_name
 
         self.clickhouse.exec(f"""
             CREATE TABLE {schema_tbl}

@@ -6,7 +6,7 @@ from parameterized import parameterized
 
 from ripley.clickhouse_models.s3_settings import ClickhouseS3SettingsModel, S3SelectSettingsModel
 from ripley.clickhouse_models.remote_settings import ClickhouseRemoteSettingsModel as RemoteSettings
-from tests.clickhouse._base_test import BaseClickhouseTest, DB
+from tests.clickhouse._base_test import BaseClickhouseTest, DB, get_full_table_name
 
 _S3_BUCKET = 'ripley'
 _REGION_NAME = 'us-east-1'
@@ -57,9 +57,9 @@ class TestClickhouseTableService(BaseClickhouseTest):
             None,
             None,
             '',
-            'CREATE TABLE ripley_tests_db1.create_table_as1 (`key` UInt64, `day` Date) ENGINE = MergeTree '
+            f'CREATE TABLE {get_full_table_name("create_table_as1", DB.RIPLEY_TESTS.value)} (`key` UInt64, `day` Date) ENGINE = MergeTree '
             'PARTITION BY day ORDER BY key SETTINGS index_granularity = 8192',
-            'CREATE TABLE ripley_tests_db1.create_table_as2 (`key` UInt64, `day` Date) ENGINE = MergeTree '
+            f'CREATE TABLE {get_full_table_name("create_table_as2", DB.RIPLEY_TESTS.value)} (`key` UInt64, `day` Date) ENGINE = MergeTree '
             'PARTITION BY day ORDER BY key SETTINGS index_granularity = 8192'
         ],
         [
@@ -68,9 +68,9 @@ class TestClickhouseTableService(BaseClickhouseTest):
             None,
             None,
             '',
-            'CREATE TABLE ripley_tests_db1.create_table_as1 (`key` UInt64, `day` Date) ENGINE = MergeTree '
+            f'CREATE TABLE {get_full_table_name("create_table_as1", DB.RIPLEY_TESTS.value)} (`key` UInt64, `day` Date) ENGINE = MergeTree '
             'PARTITION BY day ORDER BY key SETTINGS index_granularity = 8192',
-            'CREATE TABLE ripley_tests_db2.create_table_as2 (`key` UInt64, `day` Date) ENGINE = MergeTree '
+            f'CREATE TABLE {get_full_table_name("create_table_as2", DB.RIPLEY_TESTS2.value)} (`key` UInt64, `day` Date) ENGINE = MergeTree '
             'PARTITION BY day ORDER BY key SETTINGS index_granularity = 8192'
         ],
         [
@@ -79,9 +79,9 @@ class TestClickhouseTableService(BaseClickhouseTest):
             ['day'],
             ['key'],
             'AggregatingMergeTree',
-            'CREATE TABLE ripley_tests_db2.create_table_as1 (`key` UInt64, `day` Date) ENGINE = MergeTree '
+            f'CREATE TABLE {get_full_table_name("create_table_as1", DB.RIPLEY_TESTS2.value)} (`key` UInt64, `day` Date) ENGINE = MergeTree '
             'PARTITION BY day ORDER BY key SETTINGS index_granularity = 8192',
-            'CREATE TABLE ripley_tests_db1.create_table_as2 (`key` UInt64, `day` Date) ENGINE = AggregatingMergeTree '
+            f'CREATE TABLE {get_full_table_name("create_table_as2", DB.RIPLEY_TESTS.value)} (`key` UInt64, `day` Date) ENGINE = AggregatingMergeTree '
             'PARTITION BY key ORDER BY day SETTINGS index_granularity = 8192',
         ],
     ])
@@ -96,7 +96,7 @@ class TestClickhouseTableService(BaseClickhouseTest):
         target_ddl: str,
     ):
         from_table_name = 'create_table_as1'
-        self.clickhouse.exec(f"""CREATE TABLE {self.get_full_table_name(from_table_name, from_db)}
+        self.clickhouse.exec(f"""CREATE TABLE {get_full_table_name(from_table_name, from_db)}
             (
               key UInt64,
               day Date
@@ -157,7 +157,7 @@ class TestClickhouseTableService(BaseClickhouseTest):
         self.create_test_table(table_name, db_name)
         self.clickhouse.truncate(table_name, db_name)
 
-        result = self.clickhouse.exec(f'SELECT * FROM {self.get_full_table_name(table_name, db_name)}')
+        result = self.clickhouse.exec(f'SELECT * FROM {get_full_table_name(table_name, db_name)}')
         self.assertListEqual([], result)
 
     @parameterized.expand([
@@ -172,7 +172,7 @@ class TestClickhouseTableService(BaseClickhouseTest):
             file_format='CSVWithNames',
         )
 
-        self.clickhouse.exec(f"""CREATE TABLE {self.get_full_table_name(table_name, db_name)} (
+        self.clickhouse.exec(f"""CREATE TABLE {get_full_table_name(table_name, db_name)} (
           value String,
           day Date
         )
@@ -248,7 +248,7 @@ UNKNOWN_VALUE,2024-01-01,2025-01-01,eu-a1-123,Ridley Scott""",
     def test_insert_from_remote(self):
         remote_table = 'insert_from_remote'
         remote_db = DB.RIPLEY_TESTS2.value
-        full_remote_name = self.get_full_table_name(remote_table, remote_db)
+        full_remote_name = get_full_table_name(remote_table, remote_db)
 
         self.clickhouse.create_db(remote_db)
         self.clickhouse.exec(f"""CREATE OR REPLACE TABLE {full_remote_name} (
@@ -262,7 +262,7 @@ UNKNOWN_VALUE,2024-01-01,2025-01-01,eu-a1-123,Ridley Scott""",
         table_copy_name = f'copy_{remote_table}'
         self.clickhouse.insert_from_remote(settings, table_copy_name, create_table=True)
 
-        copy_name = self.get_full_table_name(table_copy_name, DB.RIPLEY_TESTS.value)
+        copy_name = get_full_table_name(table_copy_name, DB.RIPLEY_TESTS.value)
         original = self.clickhouse.exec(f'SELECT * FROM {full_remote_name}')
         copy = self.clickhouse.exec(f'SELECT * FROM {copy_name}')
 
