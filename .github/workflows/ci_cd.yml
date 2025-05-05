@@ -81,6 +81,11 @@ jobs:
             s3
           up-flags: "-d"
 
+      - uses: iFaxity/wait-on-action@v1.2.1
+        with:
+          resource: http://localhost:8123
+          timeout: 30000
+
       - name: run tests
         run: pytest --doctest-modules --junitxml=test-results-${{ matrix.python-version }}.xml
 
