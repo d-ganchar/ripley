@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List
+from typing import List, Tuple
 from uuid import UUID
 
 from .._base_model import BaseModel
@@ -42,6 +42,12 @@ class ClickhouseTableModel(BaseModel):
 
     uuid: UUID
     metadata_modification_time: datetime
+    metadata_version: int = None
+    total_bytes_uncompressed: int = None
+    active_on_fly_data_mutations: int = None
+    active_on_fly_alter_mutations: int = None
+    active_on_fly_metadata_mutations: int = None
+    parameterized_view_parameters: List[Tuple[str]] = None
 
     @property
     def full_name(self) -> str:

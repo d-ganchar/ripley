@@ -29,4 +29,5 @@ class ClickhouseColumnModel(BaseModel):
     is_in_sampling_key: int
     character_octet_length: Union[int, None]
     numeric_precision: Union[int, None]
+    serialization_hint: str = None
 
