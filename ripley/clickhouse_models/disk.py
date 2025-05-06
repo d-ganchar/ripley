@@ -19,3 +19,6 @@ class ClickhouseDiskModel(BaseModel):
     is_write_once: int
     is_remote: int
     is_broken: int
+
+    object_storage_type: str = 'None'
+    metadata_type: str = 'None'
